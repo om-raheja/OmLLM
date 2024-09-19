@@ -61,6 +61,10 @@ class BiGramDataModel(nn.Module):
         self.token_embedding_table = nn.Embedding(vocab_size, vocab_size)
 
     def forward(self, idx, targets=None):
+        # plugs the tokens into the table 
+        # semantic relationship, this is basically the "self-attention" part 
+        # of the paper, and these complex weights are the only thing that's
+        # really trained here :)
         logits = self.token_embedding_table(idx)
 
         # if there's nothing we compare to
@@ -74,10 +78,52 @@ class BiGramDataModel(nn.Module):
             # "density" of each token
             B, T, C = logits.shape
 
+            # view it as a 2D tensor of what all has been processed 
+            # that way we can have entropy
             logits = logits.view(B * T, C)
+
+            # targets is the same thing except there is no output size
+            # they don't care about storing context of each token in 
+            # the output
             targets = targets.view(B * T)
+
+            # quantifying the information encoded between what it is
+            # and what the semantic relationship should identify
+            # warning: I don't really understand what this does
+            # also can the same text have different semantic relationship?
             loss = F.cross_entropy(logits, targets)
 
         return logits, loss
 
+    def generate(self, idx, max_new_tokens):
+        for _ in range(max_new_tokens):
+            # get the predictions
+            # this calls forward for the tokens 
+            logits, loss = self(idx)
+
+            # focus only on the last time step
+            # remove T because this is a BiGram model
+            logits = logits[:, -1, :]  # get the last time step 
+
+            probs = F.softmax(logits, dim=-1)  # probabilities
+
+            # sample from the distribution
+            idx_next = torch.multinomial(probs, num_samples=1) # (B, 1)
+            # append sampled index to the running sequence
+            idx = torch.cat((idx, idx_next), dim=1) # (B, T+1)
+        return idx
+
+xb, yb = get_batch('train')
+print('inputs:')
+print(xb.shape)
+print(xb)
+print('targets:')
+print(yb.shape)
+print(yb)
+
+m = BiGramDataModel(vocab_size)
+logits, loss = m(xb, yb)
+print(logits.shape, loss)
+
+print(decode(m.generate(idx = torch.zeros((1, 1), dtype=torch.long), max_new_tokens=100)[0].tolist()))
 
