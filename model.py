@@ -9,8 +9,8 @@ from torch.utils.data import DataLoader
 
 # ----
 # hyperparameters
-block_size = 32
-batch_size = 32
+block_size = 128 
+batch_size = 256
 max_iters = 5000
 learning_rate = 1e-3
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
@@ -29,8 +29,9 @@ class BiGramDataModel(nn.Module):
         # coming after another, hence "bigram"
         self.token_embedding_table = nn.Embedding(vocab_size, n_embed)
         self.position_embedding_table = nn.Embedding(block_size, n_embed)
-        self.sa_head = Head(n_embed)
+        self.sa_heads = MultiHeadAttention(4, n_embed//4)
         self.lm_head = nn.Linear(n_embed, vocab_size)
+        self.feed_forward = FeedForward(n_embed)
 
 
     def forward(self, idx, targets=None):
@@ -45,7 +46,8 @@ class BiGramDataModel(nn.Module):
         # add them
         x = token_emb + pos_emb
         # apply the head
-        x = self.sa_head(x)
+        x = self.sa_heads(x)
+        x = self.feed_forward(x)
 
         # apply lm head (linear transformation to return back to life)
         logits = self.lm_head(x)
@@ -123,3 +125,23 @@ class Head(nn.Module):
         v = self.value(x) # (B, T, C)
         out = wei @ v # (B, T, T) @ (B, T, C) -> (B, T, C)
         return out
+
+class MultiHeadAttention(nn.Module):
+    def __init__(self, heads, size):
+        super().__init__()
+        self.head_list = nn.ModuleList([Head(size) for _ in range(heads)])
+    
+    def forward(self, x):
+        out = torch.cat([h(x) for h in self.head_list], dim=-1)
+        return out
+
+class FeedForward(nn.Module):
+    def __init__(self, n_embed):
+        super().__init__()
+        self.net = nn.Sequential(
+            nn.Linear(n_embed, n_embed),
+            nn.ReLU(),
+        )
+
+    def forward(self, x):
+        return self.net(x)

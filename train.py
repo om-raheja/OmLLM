@@ -13,7 +13,9 @@ from model import BiGramDataModel
 block_size = 32
 batch_size = 32
 max_iters = 5000
+eval_iters = 100
 learning_rate = 1e-3
+eval_interval = 100
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
 n_embed = 64 # dimensionality of the character embedding vectors
@@ -29,6 +31,19 @@ def get_batch(split):
     y = torch.stack([data[i + 1:i+block_size+1] for i in ix])
     return x, y
 
+@torch.no_grad()
+def estimate_loss():
+    out = {}
+    m.eval()
+    for split in ['train', 'val']:
+        losses = torch.zeros(eval_iters)
+        for k in range(eval_iters):
+            X, Y = get_batch(split)
+            logits, loss = m(X, Y)
+            losses[k] = loss.item()
+        out[split] = losses.mean()
+    m.train()
+    return out
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -91,6 +106,11 @@ if __name__ == "__main__":
 
     # it hovers around 2.3-2.8 loss, needs some internal optimization
     for steps in range(max_iters):
+        # every once in a while evaluate the loss on train and val sets
+        if steps % eval_interval == 0 or steps == max_iters - 1:
+            losses = estimate_loss()
+            print(f"step {steps}: train loss {losses['train']:.4f}, val loss {losses['val']:.4f}")
+
         xb, yb = get_batch('train')
         logits, loss = m(xb, yb)
 
@@ -98,7 +118,6 @@ if __name__ == "__main__":
         optimizer.zero_grad(set_to_none=True)
         loss.backward()
         optimizer.step()
-        print(steps, loss.item())
 
     # print somewhat trained data
     print(decode(m.generate(idx = torch.zeros((1, 1), dtype=torch.long), max_new_tokens=100)[0].tolist()))
