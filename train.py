@@ -53,70 +53,67 @@ chars = list(set(data))
 data_size, vocab_size = len(data), len(chars)
 print("data has %d characters, %d unique" % (data_size, vocab_size))
 
-if __name__ == "__main__":
-    m = BiGramDataModel(vocab_size)
-    m = m.to(device)
+m = BiGramDataModel(vocab_size)
+m = m.to(device)
 
-    # mapping
-    char_to_ix = {ch: i for i, ch in enumerate(chars)}
-    ix_to_char = {i: ch for i, ch in enumerate(chars)}
+# mapping
+char_to_ix = {ch: i for i, ch in enumerate(chars)}
+ix_to_char = {i: ch for i, ch in enumerate(chars)}
 
-    ## encode and decode
-    ## warning: there is a way with vectors that 3Blue1Brown explains it detail but 
-    ## this is basic
-    encode = lambda x: [char_to_ix[c] for c in x]
-    decode = lambda x: "".join([ix_to_char[i] for i in x])
+## encode and decode
+encode = lambda x: [char_to_ix[c] for c in x]
+decode = lambda x: "".join([ix_to_char[i] for i in x])
 
-    # convert the data to numbers
-    data_num = torch.tensor(encode(data), dtype=torch.long)
+# convert the data to numbers
+data_num = torch.tensor(encode(data), dtype=torch.long)
 
-    ## decide training and validation data
-    n = int(0.9 * len(data_num))
-    train_data = data_num[:n]
-    val_data = data_num[n:]
+## decide training and validation data
+n = int(0.9 * len(data_num))
+train_data = data_num[:n]
+val_data = data_num[n:]
 
-    x = train_data[:block_size]  # input
-    y = train_data[1:block_size + 1]  # labels
+x = train_data[:block_size]  # input
+y = train_data[1:block_size + 1]  # labels
 
+
+xb, yb = get_batch('train')
+print('inputs:')
+print(xb.shape)
+print(xb)
+print('targets:')
+print(yb.shape)
+print(yb)
+
+logits, loss = m(xb, yb)
+print(logits.shape, loss)
+
+# print untrained output for testing
+print(decode(m.generate(idx = torch.zeros((1, 1), dtype=torch.long).to(device), max_new_tokens=100)[0].tolist()))
+
+# optimize 
+
+optimizer = torch.optim.AdamW(m.parameters(), lr=1e-3)
+
+
+for steps in range(max_iters):
+    # hangs over here somewhere no idea why
+
+    # every once in a while evaluate the loss on train and val sets
+    if steps % eval_interval == 0 or steps == max_iters - 1:
+        losses = estimate_loss()
+        print(f"step {steps}: train loss {losses['train']:.4f}, val loss {losses['val']:.4f}")
 
     xb, yb = get_batch('train')
-    print('inputs:')
-    print(xb.shape)
-    print(xb)
-    print('targets:')
-    print(yb.shape)
-    print(yb)
-
     logits, loss = m(xb, yb)
-    print(logits.shape, loss)
 
-    # print untrained output for testing
-    print(decode(m.generate(idx = torch.zeros((1, 1), dtype=torch.long).to(device), max_new_tokens=100)[0].tolist()))
+    # approach the optimized gradient
+    optimizer.zero_grad(set_to_none=True)
+    loss.backward()
+    optimizer.step()
 
-    # optimize 
-
-    optimizer = torch.optim.AdamW(m.parameters(), lr=1e-3)
-
-
-    for steps in range(max_iters):
-        # hangs over here somewhere no idea why
-
-        # every once in a while evaluate the loss on train and val sets
-        if steps % eval_interval == 0 or steps == max_iters - 1:
-            losses = estimate_loss()
-            print(f"step {steps}: train loss {losses['train']:.4f}, val loss {losses['val']:.4f}")
-
-        xb, yb = get_batch('train')
-        logits, loss = m(xb, yb)
-
-        # approach the optimized gradient
-        optimizer.zero_grad(set_to_none=True)
-        loss.backward()
-        optimizer.step()
-
-    # print somewhat trained data
-    print(decode(m.generate(idx = torch.zeros((1, 1), dtype=torch.long), max_new_tokens=100)[0].tolist()))
+# print somewhat trained data
+print(decode(m.generate(idx = torch.zeros((1, 1), dtype=torch.long), max_new_tokens=100)[0].tolist()))
 
 
-    # pickle the results
-    torch.save((vocab_size, char_to_ix, ix_to_char, m.state_dict()), "model.pkl")
+# pickle the results
+torch.save((vocab_size, char_to_ix, ix_to_char, m.state_dict()), "model.pkl")

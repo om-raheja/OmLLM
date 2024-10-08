@@ -6,7 +6,7 @@ import torch.nn.functional as F
 import torch.optim as optim
 from torch.utils.data import DataLoader
 
-
+ 
 # ----
 # hyperparameters
 block_size = 256 
@@ -95,6 +95,7 @@ class BiGramDataModel(nn.Module):
 
             # focus only on the last time step
             # remove T because this is a BiGram model
+            # this might be wrong
             logits = logits[:, -1, :]  # get the last time step 
 
             probs = F.softmax(logits, dim=-1)  # probabilities
