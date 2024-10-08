@@ -11,21 +11,21 @@ from model import BiGramDataModel
 # ----
 # hyperparameters
 
-block_size = 256 
-batch_size = 128
+block_size = 8 
+batch_size = 8
 max_iters = 10000
 eval_interval = 500
 eval_iters = 200
-device = "mps"
+device = torch.device("mps")
 # ----
 
 # warning: susceptible to overlapping data
 def get_batch(split):
     # generate a small batch of data of inputs x and targets y
     data = train_data if split == "train" else val_data
-    ix = torch.randint(len(data) - block_size, (batch_size,)).to(device)
-    x = torch.stack([data[i : i + block_size] for i in ix]).to(device)
-    y = torch.stack([data[i + 1:i+block_size+1] for i in ix]).to(device)
+    ix = torch.randint(len(data) - block_size, (batch_size,))
+    x = torch.stack([data[i : i + block_size] for i in ix])
+    y = torch.stack([data[i + 1:i+block_size+1] for i in ix])
     return x, y
 
 @torch.no_grad()
@@ -65,7 +65,7 @@ encode = lambda x: [char_to_ix[c] for c in x]
 decode = lambda x: "".join([ix_to_char[i] for i in x])
 
 # convert the data to numbers
-data_num = torch.tensor(encode(data), dtype=torch.long)
+data_num = torch.tensor(encode(data), dtype=torch.long).to(device)
 
 ## decide training and validation data
 n = int(0.9 * len(data_num))
@@ -88,7 +88,7 @@ logits, loss = m(xb, yb)
 print(logits.shape, loss)
 
 # print untrained output for testing
-print(decode(m.generate(idx = torch.zeros((1, 1), dtype=torch.long).to(device), max_new_tokens=100)[0].tolist()))
+print(decode(m.generate(idx = torch.zeros((1, 1), dtype=torch.long, device=device), max_new_tokens=100)[0].tolist()))
 
 # optimize 
 
@@ -111,9 +111,9 @@ for steps in range(max_iters):
     loss.backward()
     optimizer.step()
 
-# print somewhat trained data
-print(decode(m.generate(idx = torch.zeros((1, 1), dtype=torch.long), max_new_tokens=100)[0].tolist()))
-
+## generate from the model
+context = torch.zeros((1, 1), dtype=torch.long, device=device)
+print(decode(m.generate(context, max_new_tokens=500)[0].tolist())) # print somewhat trained data
 
 # pickle the results
 torch.save((vocab_size, char_to_ix, ix_to_char, m.state_dict()), "model.pkl")
