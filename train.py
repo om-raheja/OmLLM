@@ -10,16 +10,10 @@ from model import BiGramDataModel
 
 # ----
 # hyperparameters
-block_size = 32
-batch_size = 32
-max_iters = 5000
-eval_iters = 100
-learning_rate = 1e-3
-eval_interval = 100
-device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
-n_embed = 64 # dimensionality of the character embedding vectors
-
+max_iters = 10000
+eval_interval = 500
+eval_iters = 200
 # ----
 
 # warning: susceptible to overlapping data
