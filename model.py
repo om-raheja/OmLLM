@@ -12,7 +12,7 @@ from torch.utils.data import DataLoader
 block_size = 256 
 batch_size = 128
 learning_rate = 3e-4
-device = 'cuda' if torch.cuda.is_available() else 'cpu'
+device = "mps"
 
 n_embed = 384 # dimensionality of the character embedding vectors
 n_head = 6 # number of heads in the multi-head attention
@@ -29,25 +29,25 @@ class BiGramDataModel(nn.Module):
         # warning: generally set to a small value but we have characters for tokens
         # this basically is used to tell you what the probability is of one token
         # coming after another, hence "bigram"
-        self.token_embedding_table = nn.Embedding(vocab_size, n_embed)
-        self.position_embedding_table = nn.Embedding(block_size, n_embed)
+        self.token_embedding_table = nn.Embedding(vocab_size, n_embed).to(device)
+        self.position_embedding_table = nn.Embedding(block_size, n_embed).to(device)
         self.blocks = nn.Sequential(
                 *[Block(n_embed, n_head) for _ in range(n_layer)],
         )
-        self.lm_head = nn.Linear(n_embed, vocab_size)
+        self.lm_head = nn.Linear(n_embed, vocab_size).to(device)
 
-        self.feed_forward = FeedForward(n_embed)
-
+        self.feed_forward = FeedForward(n_embed).to(device)
 
     def forward(self, idx, targets=None):
         B, T= idx.shape
+        idx = idx.to(device)
         # plugs the tokens into the table 
         # semantic relationship, this is basically the "self-attention" part 
         # of the paper, and these complex weights are the only thing that's
         # really trained here :)
         token_emb = self.token_embedding_table(idx)
         pos_emb = self.position_embedding_table(torch.arange(T, device=device))
-        
+
         # add them
         x = token_emb + pos_emb
         # apply the head
@@ -100,9 +100,9 @@ class BiGramDataModel(nn.Module):
             probs = F.softmax(logits, dim=-1)  # probabilities
 
             # sample from the distribution
-            idx_next = torch.multinomial(probs, num_samples=1) # (B, 1)
+            idx_next = torch.multinomial(probs, num_samples=1).to(device) # (B, 1).
             # append sampled index to the running sequence
-            idx = torch.cat((idx, idx_next), dim=1) # (B, T+1)
+            idx = torch.cat((idx, idx_next), dim=1).to(device) # (B, T+1)
         return idx
 
 # create a Head
@@ -111,14 +111,15 @@ class Head(nn.Module):
         # initialize with random weights
         super().__init__()
         # add a key, value, and query
-        self.key = nn.Linear(n_embed, head_size, bias=False)
-        self.query = nn.Linear(n_embed, head_size, bias=False)
-        self.value = nn.Linear(n_embed, head_size, bias=False)
+        self.key = nn.Linear(n_embed, head_size, bias=False).to(device)
+        self.query = nn.Linear(n_embed, head_size, bias=False).to(device)
+        self.value = nn.Linear(n_embed, head_size, bias=False).to(device)
         self.register_buffer("tril", torch.tril(torch.ones(block_size, block_size)))
         
         self.dropout = nn.Dropout(dropout)
 
     def forward(self, x):
+        x = x.to(device)
         B, T, C = x.shape
         k = self.key(x) # (B, T, C)
         q = self.query(x) # (B, T, C)
@@ -136,7 +137,7 @@ class Head(nn.Module):
 class MultiHeadAttention(nn.Module):
     def __init__(self, heads, size):
         super().__init__()
-        self.head_list = nn.ModuleList([Head(size) for _ in range(heads)])
+        self.head_list = nn.ModuleList([Head(size).to(device) for _ in range(heads)])
         self.proj = nn.Linear(heads * size, n_embed)
         self.dropout = nn.Dropout(dropout)
     
@@ -162,15 +163,16 @@ class Block(nn.Module):
     def __init__(self, n_embed, n_head):
         super().__init__()
         head_size = n_embed // n_head
-        self.sa_heads = MultiHeadAttention(n_head, head_size)
-        self.ff = FeedForward(n_embed)
+        self.sa_heads = MultiHeadAttention(n_head, head_size).to(device)
+        self.ff = FeedForward(n_embed).to(device)
         
         # batch normalization
         # https://arxiv.org/abs/1607.06450
-        self.la1 = nn.LayerNorm(n_embed)
-        self.la2 = nn.LayerNorm(n_embed)
+        self.la1 = nn.LayerNorm(n_embed).to(device)
+        self.la2 = nn.LayerNorm(n_embed).to(device)
 
     def forward(self, x):
+        x = x.to(device)
         # some optimization by adding it
         x = x + self.sa_heads(self.la1(x)) # this is the same as x = x + self.sa_heads(x)
         x = x + self.ff(self.la2(x)) # this is the same as x = x + self.ff(x)
