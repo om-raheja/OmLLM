@@ -11,8 +11,8 @@ from model import BiGramDataModel
 # ----
 # hyperparameters
 
-block_size = 8 
-batch_size = 8
+block_size = 256
+batch_size = 64
 max_iters = 10000
 eval_interval = 500
 eval_iters = 200

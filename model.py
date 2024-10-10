@@ -9,11 +9,11 @@ from torch.utils.data import DataLoader
  
 # ----
 # hyperparameters
-block_size = 8 
-batch_size = 8
+block_size = 256
+batch_size = 64 
 learning_rate = 3e-4
 
-n_embed = 32 # dimensionality of the character embedding vectors
+n_embed = 512 # dimensionality of the character embedding vectors
 n_head = 6 # number of heads in the multi-head attention
 n_layer = 6
 dropout = 0.2

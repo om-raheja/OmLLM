@@ -10,7 +10,8 @@ from model import BiGramDataModel
 device = torch.device("mps" if torch.mps.is_available() else "cpu")
 
 # In run.py
-vocab_size, char_to_ix, ix_to_char, state = torch.load("model.pkl", weights_only=False)
+vocab_size, char_to_ix, ix_to_char, state = torch.load("model.pkl", weights_only=False,
+                                                       map_location=device)
 model = BiGramDataModel(vocab_size)  # Initialize your model first
 encode = lambda x: [char_to_ix[c] for c in x]
 decode = lambda x: "".join([ix_to_char[i] for i in x])
